@@ -51,7 +51,7 @@ This is a repository I use for learning MongoDB.
 - [$eq] : equal
 
 - [$elemMatch]: find document from collections that contain at least one element that matches with the filter.
-*[Example]: db.collection.find({arrKey: {$elemMatch: {key: value}}})*
+**[Example]: db.collection.find({arrKey: {$elemMatch: {key: value}}})**
 
 - [$ne]: not equal
 
@@ -120,6 +120,19 @@ This is a repository I use for learning MongoDB.
 Upsert has two value: true or false with false is a default. true is create new if don't find any document match.
 **[Example]: db.collection.updateOne({name: 'N'}, {$set: {value: 1}}, {upsert: true})**
 
+- [$push]: this operator is used to push element into field has value type is Array. you can add more value with [$each]
+**[Example]: db.collection.updateMany({}, {$push: {hobbies: {a: 1, b: 5}}})**
+**[ExampleMany]: db.collection.updateMany({}, {$push: {hobbies: {$each: [{a: 1, b: 1}, {a: 2, b:2}], $sort: -1}}})
+
+- [$pull]: this operator is used to remove one element or list elements match with query
+**[Example]: db.collection.updateMany({}, {$pull: {array: {a: 1}}})**
+
+- [$pop]: this operator is used to remove first or last element in array. **1 is Last element. -1 is First element** 
+**[Example]: db.collection.updateMany({}, {$pop: {array: 1}})**
+
+- [$addToSet]: this operator is used to add more element into array, but this element is always unique, if not => it will not create new
+**[Example]: db.collection.updateMany({}, {$addToSet: {array: {a: 1}}})**
+
 # METHODS:
 - [replaceOne()]: replace all model, not similar with updateOne or updateMany just update property field in model. This method is similar with deprecated method: update.
 And this cannot use ameratic operator
@@ -128,6 +141,10 @@ And This method give default 20 top element. You can forEach or toArray to show 
 - [pretty()] only use with cursor object, return a cursor, not a list documents
 - [stats()]: This method is provided by mongo shell to show the stats of this db.
 - [aggreate()]: This method is calculated aggreate value for the data in the collection. firstParam: []
+- [drop()]: this method use for delete collection in db. 
+- **[Example]: db.collection.drop()**
+- [dropDatabase()]: this method use for delete db
+- **[Example]: db.dropDatabase()**
 
 # CURSORS:
 - [find()] always return a list of cursor to save performance. default: 20. you can use next() to determine element, hasNext() to check have element TRUE: still yet, FALSE: not yet  
@@ -149,7 +166,7 @@ Once you use forEach of list documents, cursol will be exhausted
 - _id is always display return unless you config _id: 0
 
 - The positional $ operator limits the contents of an <array> to return the first element that matches the query condition on the array
-*[Example]: db.collection.find({}, {'array.$': 1})
+*[Example]: db.collection.find({filter}, {'array.$': 1})
 - You can custom $ operator limits by $elemMatch
 *[Example]: db.collection.find({}, {'array': {$elemMatch: {$eq: 5}}})
 
@@ -168,6 +185,16 @@ Once you use forEach of list documents, cursol will be exhausted
 *[Example]: db.collection.find({detail: 'a'}) => This check 'a' is contain in what document ?
 - If you want to find exactly data, you can pass all data into square bracket
 *[Example]: db.collection.find({detail: ['a']}) => this check document is have detail equal ['a']
+
+- update matched one element in array. find FIRST element in array match with query and update it. **Symbol: $**
+**[Example]: db.collection.updateMany({array: {$elemMatch: {a: 1, b:2}}}, {$set: {'array.$.keyNew': 1}})**
+
+- update all elements in array. **Symbol: $[]**
+**[Example]: db.collection.updateMany({}, {$set: {'array.$[].keyadd': 5}})**
+
+- update matched elements in array. You need third agrument with key is **arrayFilters**, type of value is **Array**. **Symbol: $[el]**. Remember the key el is very neccessary
+You can use more el for check multiple fields.
+**[Example]: db.collection.updateMany({}, ${set: {'array.$[el].keyAdd': 5}}, {arrayFilters: [{'el.key'}: 5]})**
 
 # DOT NOTATION
 *[Example]: {a: [{b: 'c'}]} => db.collection.method({'a.b': 'c'})
