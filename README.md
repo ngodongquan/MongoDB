@@ -122,7 +122,7 @@ Upsert has two value: true or false with false is a default. true is create new 
 
 - [$push]: this operator is used to push element into field has value type is Array. you can add more value with [$each]
 **[Example]: db.collection.updateMany({}, {$push: {hobbies: {a: 1, b: 5}}})**
-**[ExampleMany]: db.collection.updateMany({}, {$push: {hobbies: {$each: [{a: 1, b: 1}, {a: 2, b:2}], $sort: -1}}})
+**[ExampleMany]: db.collection.updateMany({}, {$push: {hobbies: {$each: [{a: 1, b: 1}, {a: 2, b:2}], $sort: -1}}})**
 
 - [$pull]: this operator is used to remove one element or list elements match with query
 **[Example]: db.collection.updateMany({}, {$pull: {array: {a: 1}}})**
@@ -233,3 +233,111 @@ have any document fail, the next document willnot be added. insertMany() have pr
 w: decide whether need to know that document is inserted in mongodb or not. 0: don't wait service respond. 1: Wait service respond
 j: decide whether need to create backup or not
 wtimeout: limit time to inserted in mongodb successfully. Example, the time inserted bigger than wtimeout => error
+
+# INDEXES
+- use for speed up query, should use index when return a small percent, if return large collections, index will make your query slowly
+- [explain()]: analyze the query. You can pass argument as string for explain: **executionStats**
+**[Example]: db.collection.explain().find({})**
+
+- [createIndex()]: create index for every field in document. value: -1 or 1. You can use **explain(executionStats)** to find stats of number of documents researches.
+**[Example]: db.collection.createIndex({'key': 1})**
+- CreateIndex can have a second argument was a options config.
+**[Example]: db.collection.createIndex({'key': 1}, {unique: true})**
+
+- [CompoundIndexes]: this is a definition about create index with compound key. But when you use to IDXSCAN, you should use from left to right.
+**[Example]: db.collection.createIndex({'key1': 1, 'key2': 1, 'key3': 3})** => Mongo will create a key => key1_1_key2_1_key3_1 => then you should use some cases like:
+document.collection.find({key1: 'a'}) || document.collection.find({key1: 'a', key2: 'b', key3: 'c'})
+You cannot use come between key like "{key2: 'a'}" to use INXSCAN.
+
+- [PartialIndex]: this is a definition about to only meet a specific filter expression then create index. This use as a second arguments.
+**[Example]: db.collection.createIndex({'key1': 1}, {partialFilterExpression: {'key2': 'aa'}})**
+- Like above example only query pass **partialFilterExpression** then create index. You should notify that when you use query you should attach this filExpression then have IDXSCAN
+**[Example]: db.collection.find({key1: 'aa', key2: 'aa'})**
+
+- You can integrate [unique] and [partialFilterExpression] to decide whether this field should be add unique or not.
+**[Example]: db.collection.createIndex({'key1': 1}, {unique: true, partialFilterExpression: {'key1': {$gt: 60}}})**
+- Above example has mean key1 should be greater than 60, then add unique for key 1
+
+- [getIndexes()]: this method is used to get all index create
+**[Example]: db.collection.getIndexes()**
+
+- [expireAfterSeconds]: A document will expire when the number of seconds in the expireAfterSeconds filed has overcome since the time specified in indexed field.
+Adding a new element basically triggered mongodb to re-evaluate the entire collection.
+**[Example]: db.collection.createIndex({key:1}, {expireAfterSeconds: 10})**
+
+# HOW MONGO DB REJECTED PLAN
+1. if you createIndex by compound index like this: db.collection.createIndex({a: 1, b: 1}) => save a_1_b_1 as a key in a index.
+2. Then, you createIndex: db.collection.createIndex({a: 1}) || db.collection.createIndex({b: 1}) => save two key a_1 and b_1 as a key in index
+3. You use the query: db.collection.find({a: 1. b: 1})
+4. The winning plans will be: a_1_b_1
+5. The rejected plans will be a_1 and b_1
+
+# TEXT INDEXES
+- You only have one text index in one collection.
+**[Example]: db.collection.createIndex({description: 'text'}) || db.collection.createIndex({description: 'text', name: 'text'})**
+- Then you can search field has string you want, this feature is quite similar with $regex. No need to declare field to search.
+**[Example]: db.collection.find({$text: {$search: "/"aaaa/""}})**
+
+- You can integrate text index with sorting by use $meta, this will evaluate text score.
+**[Example]: db.collection.find({$text: {$search: "/"aaaaa/""}}, {score: {$meta: 'textScore'}}).sort({score: {$meta: 'textScore'}})**
+- You can find data by exclude world by [--]
+**[Example]: db.collection.find({$text: {$search: "a a --b"}})** -> find data havey text contain a or a but not include b
+
+- You can add key background for not to blocking when createindex and insertElement
+**[Example]: db.collection.find({}, {background: true})**
+
+# GEOSPATIAL DATA
+- GEOJsonData sample: {
+  name: 'HCM city',
+  location: {
+    type: 'Point',
+    coordinates: [
+      106.3655802,
+      10
+    ] ([lng, lat])
+  }
+}
+
+- Step to search nearest place in geo data
+1. Insert data with right sample.
+2. Create index for location with type is **2dsphere**. **[Example]: db.collection.createIndex({location: '2dsphere'})**
+3. Use query to research geo data with two important operators [$near], [$geomatry]. You can config max distance to search by operator [$maxDistance]. 
+**[Example]: db.collection.find({location: {$near: {$geometry: {type: 'Point', coordinates: [lng, lat]}, $maxDistance: 1000}}})**
+
+- If you want to find location inside a certain area
+1. Declare list [lng, lat] to customize polygon
+2. Same seconde step above
+3. use query to research geo data within certain area. And operators [$geoWithin]
+**[Example]: db.collection.find({location: {$geoWithin: {$geometry: {type: "Polygon", coordinates: [[p1, p2, p3, p4]]}}}})** p1,p2,p3,p4: [lng, lat]
+- Notes: coordinates was an array and have list of polygon. And polygon was made by list of [lng, last].
+
+- If you want to find are contain location point
+1. Insert data. 
+**[Example]: db.area.insertOne({name: 'Area1', area: {type: 'Polygon', coordinates: [[p1 ,p2, p3, p4]]}})**
+2. Create index for area
+**[Example]: db.area.createIndex({area: '2dsphere'})**
+3. Use query to reseach if area contain location. And operators: [$geoIntersects]
+**[Example]: db.area.find({area: {$geoIntersects: {$geometry: {type: 'Point', coordinates: [lng, lat]}}}})**
+
+- If you want to find all location within center
+**[Example]: db.location.find(location: {$geoWithin: {$centerSphere: [[lng, lat]], 1 / 6378.1}})**  
+
+# AGGREATION
+- same with find return list cursors
+- [$match]: use in the aggreation to find the documents
+**[Example]: db.collection.aggreate([{$match: {a: '1'}}])**
+
+- [$group]: use in the aggreation to group the documents acording to key or group of keys. The output is one document for each unique group key. The key is required is **_id**
+The key use should have $ before
+**[Example]: db.collection.aggreate([{$group: {_id: {keyIadd: '$key to use', keyIaddSecond: '$key to use next'}, countEachGroupKey: {$sum: 1}}}])**
+- You can add some options to calculate about list collection acording to group key such as: [$sum], [$avg]
+**[Example]: db.collection.aggreate([{$group: {_id: {gender: '$gender'}, sum: {$sum: 1}, avg: {$avg: '$age'}}}, {sort: {$sort: {sum: 1}}}])**
+=> this example is describe group collection acording to gender, and calculate sum and avegare each group collection suit for group key, and after al, sort ascending by sum
+
+- [$sort]: you can itegrate sort and group to find exact element you want. you can sort every field you want. With 1: Ascending and -1: Descending.
+**[Example]: db.collection.aggreate([{group: {_id: {age: '$age'}, sum: {$sum: 1}}}, {$sort: {'_id.age': 1}}])**
+
+- [$project]: this operator is same feature with projection. 1: show, 0. hide
+**[Example]: db.collection.aggreate([{$project: {name: 1, age: 1}}])**
+- Some operators support for custom string is: [$concat], [$substr], [$substrCP], [$toUpper], [$strLenCP]
+**[Example]: db.collection.aggreate([{$project: {fullName: {$concat: [{$toUpper: {$substrCP: [{'name.first', 0, 1}]}}, ' ' ,a]}}}])**
