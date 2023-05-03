@@ -140,7 +140,7 @@ And this cannot use ameratic operator
 And This method give default 20 top element. You can forEach or toArray to show all data. Not get data immediately, then we get the cursor instead. 
 - [pretty()] only use with cursor object, return a cursor, not a list documents
 - [stats()]: This method is provided by mongo shell to show the stats of this db.
-- [aggreate()]: This method is calculated aggreate value for the data in the collection. firstParam: []
+- [aggregate()]: This method is calculated aggregate value for the data in the collection. firstParam: []
 - [drop()]: this method use for delete collection in db. 
 - **[Example]: db.collection.drop()**
 - [dropDatabase()]: this method use for delete db
@@ -325,19 +325,63 @@ Adding a new element basically triggered mongodb to re-evaluate the entire colle
 # AGGREATION
 - same with find return list cursors
 - [$match]: use in the aggreation to find the documents
-**[Example]: db.collection.aggreate([{$match: {a: '1'}}])**
+**[Example]: db.collection.aggregate([{$match: {a: '1'}}])**
 
 - [$group]: use in the aggreation to group the documents acording to key or group of keys. The output is one document for each unique group key. The key is required is **_id**
-The key use should have $ before
-**[Example]: db.collection.aggreate([{$group: {_id: {keyIadd: '$key to use', keyIaddSecond: '$key to use next'}, countEachGroupKey: {$sum: 1}}}])**
+The key use should have $ before. The relation of [$group]: n:1, multiple document into one documents. You can sum, build Array, count, average
+**[Example]: db.collection.aggregate([{$group: {_id: {keyIadd: '$key to use', keyIaddSecond: '$key to use next'}, countEachGroupKey: {$sum: 1}}}])**
 - You can add some options to calculate about list collection acording to group key such as: [$sum], [$avg]
-**[Example]: db.collection.aggreate([{$group: {_id: {gender: '$gender'}, sum: {$sum: 1}, avg: {$avg: '$age'}}}, {sort: {$sort: {sum: 1}}}])**
+**[Example]: db.collection.aggregate([{$group: {_id: {gender: '$gender'}, sum: {$sum: 1}, avg: {$avg: '$age'}}}, {sort: {$sort: {sum: 1}}}])**
 => this example is describe group collection acording to gender, and calculate sum and avegare each group collection suit for group key, and after al, sort ascending by sum
 
 - [$sort]: you can itegrate sort and group to find exact element you want. you can sort every field you want. With 1: Ascending and -1: Descending.
-**[Example]: db.collection.aggreate([{group: {_id: {age: '$age'}, sum: {$sum: 1}}}, {$sort: {'_id.age': 1}}])**
+**[Example]: db.collection.aggregate([{group: {_id: {age: '$age'}, sum: {$sum: 1}}}, {$sort: {'_id.age': 1}}])**
 
-- [$project]: this operator is same feature with projection. 1: show, 0. hide
-**[Example]: db.collection.aggreate([{$project: {name: 1, age: 1}}])**
+- [$project]: this operator is same feature with projection. 1: show, 0. hide. The relation of [$project] is 1:1. It just transform fields within a single documents.
+**[Example]: db.collection.aggregate([{$project: {name: 1, age: 1}}])**
 - Some operators support for custom string is: [$concat], [$substr], [$substrCP], [$toUpper], [$strLenCP]
-**[Example]: db.collection.aggreate([{$project: {fullName: {$concat: [{$toUpper: {$substrCP: [{'name.first', 0, 1}]}}, ' ' ,a]}}}])**
+**[Example]: db.collection.aggregate([{$project: {fullName: {$concat: [{$toUpper: {$substrCP: [{'name.first', 0, 1}]}}, ' ' ,a]}}}])**
+
+- Some operator to convert: [$convert], [$toDate], [$toString], ...
+- Operator to get year from date: [$isoWeekYear]
+
+- [$push]: when you [$group] collection, you can merge array by method [$push]
+**[Example]: db.collection.aggregate([{$group: {_id: {age: '$age'}, allHobbies: {$push: '$hobbies'}}}])**
+- You can easily remove duplicate element in array by [$addToset]
+**[Example]: db.collection.aggregate([{$group: {_id: {age: '$age'}, allHobbies: {$addToset: '$hobbies'}}}])**
+
+- [$unwind]: you can deconstruct an array field from input element to output elements for each element. Image you have {name: 'a', hobbies: ['a,b,c']} => it will return 
+{name: 'a', hobbies: 'a'}, {name: 'a', hobbies: 'b'}, {name: 'a', hobbies: 'c'}
+**[Example]: db.collection.aggregate([{$unwind: {path: '$hobbies', preserveNullAndEmptyArrays: null}}])**
+*path: key you want to output elements for each element*
+*preserveNullAndEmptyArrays: when the value of $path is null, empty array, or undefined, you set TRUE [$unwinds] still output that documents* 
+
+- [$slices]: you can projection array field by operator slice.
+**[Example]: db.collection.aggregate([{$project: {newArray: {$slices: ['$array', position, n]}}}])**
+*if have position, it will start to position and get n elements, but none, it will be get n elements from start.*
+
+- [$size]: you can get length of array by operator size
+**[Example]: db.collection.aggregate([{$project: {newArrayLength: {$size: '$array'}}}])**
+In some cases, if you want to group by length of array you can use $size to determine
+**[Example]: db.collection.aggregate([{$group: {_id: {$size: '$arr'}}}])** 
+
+- [$filter]: you can filter element array as you want.
+**[Example]: db.collection.aggregate([{$project: {array: {input: '$array', as: 'eachElement', cond: {$gt: ['$$eachElement.value', 50]} }}}])**
+
+- [$first]: when you group element, you can show get value of first document to show.
+**[Example]: db.collection.aggregate([{$group: {_id: {name: '$name'}, keyNew: {$first: "$age"}}}])**
+
+- [$max]: you can also find max value in [$group].
+**[Example]: db.collection.aggregate([{$group: {_id: {_id: '$_id'}, maxValue: {$max: '$score'}}}])**
+
+- [$bucket]: diving into documents into group
+**[Example]: db.collection.aggregate([{$bucket: {groupBy: '$age', boundaries: [0, 30, 50, 80], default: 'Others'}}])**
+
+- [$skip], [$limit]: you can skip element or limit number of elements to show.
+**[Example]: db.collection.aggregate([{$match: {age: {$gt: 30}}}, {$skip: 10}, {$limit: 10}])**
+
+- you can store previous aggregate by [$out]. And this will store in list collections in db
+**[Example]: db.collection.aggregate([{$match: {age: {$gt: 30}}}], {$out: 'transformedData'})**
+
+# MONGO SHELL
+- Mongo shell is based on Javascript. => 12 and 12.0 is similar in JS
